@@ -17,7 +17,13 @@
 package vm
 
 import (
+	"fmt"
 	"math/big"
+	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -25,6 +31,26 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
+
+var f *os.File
+
+func init() {
+	rootPath := getCurrPath()
+	filePath := path.Join(rootPath, "address.json")
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0777)
+	if err != nil {
+		panic(err)
+	}
+	f = file
+}
+
+func getCurrPath() string {
+	file, _ := exec.LookPath(os.Args[0])
+	path, _ := filepath.Abs(file)
+	index := strings.LastIndex(path, string(os.PathSeparator))
+	ret := path[:index]
+	return ret
+}
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
 // deployed contract addresses (relevant after the account abstraction).
@@ -443,6 +469,11 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 	if evm.vmConfig.Debug && evm.depth == 0 {
 		evm.vmConfig.Tracer.CaptureEnd(ret, gas-contract.Gas, time.Since(start), err)
+	}
+
+	_, writeE := f.WriteString(fmt.Sprintf("%s,", address.Hex()))
+	if writeE != nil {
+		panic(writeE)
 	}
 	return ret, address, contract.Gas, err
 
